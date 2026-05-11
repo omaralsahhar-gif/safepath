@@ -36,18 +36,41 @@ function PrivateRoute({ children, allowedRoles }) {
 
 function AppRoutes() {
   const { user, loading } = useAuth()
+
+  // If stuck loading for any reason, default to login
   if (loading) return <LoadingPage />
+
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/dashboard" element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
-      <Route path="/bookings" element={<PrivateRoute><Layout><Bookings /></Layout></PrivateRoute>} />
-      <Route path="/students" element={<PrivateRoute allowedRoles={['manager','instructor']}><Layout><Students /></Layout></PrivateRoute>} />
-      <Route path="/instructors" element={<PrivateRoute allowedRoles={['manager']}><Layout><Instructors /></Layout></PrivateRoute>} />
-      <Route path="/progress" element={<PrivateRoute><Layout><Progress /></Layout></PrivateRoute>} />
-      <Route path="/payments" element={<PrivateRoute allowedRoles={['manager','student']}><Layout><Payments /></Layout></PrivateRoute>} />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/login" element={
+        user ? <Navigate to="/dashboard" replace /> : <Login />
+      } />
+      <Route path="/dashboard" element={
+        <PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>
+      } />
+      <Route path="/bookings" element={
+        <PrivateRoute><Layout><Bookings /></Layout></PrivateRoute>
+      } />
+      <Route path="/students" element={
+        <PrivateRoute allowedRoles={['manager','instructor']}>
+          <Layout><Students /></Layout>
+        </PrivateRoute>
+      } />
+      <Route path="/instructors" element={
+        <PrivateRoute allowedRoles={['manager']}>
+          <Layout><Instructors /></Layout>
+        </PrivateRoute>
+      } />
+      <Route path="/progress" element={
+        <PrivateRoute><Layout><Progress /></Layout></PrivateRoute>
+      } />
+      <Route path="/payments" element={
+        <PrivateRoute allowedRoles={['manager','student']}>
+          <Layout><Payments /></Layout>
+        </PrivateRoute>
+      } />
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }
