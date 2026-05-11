@@ -24,35 +24,52 @@ export default function Dashboard() {
   const name = profile?.full_name?.split(' ')[0] || 'there'
 
   useEffect(() => {
-    async function load() {
-      const now = new Date().toISOString()
-      const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString()
-      const filters = { from: now, to: weekAhead, status: 'confirmed' }
+    // Safety timeout — never spin forever
+    const timeout = setTimeout(() => setLoading(false), 6000)
 
-      if (role === 'manager') {
-        const [s, b] = await Promise.all([
-          getDashboardStats(),
-          getBookings(filters)
-        ])
-        setStats(s)
-        setUpcoming(b.data || [])
-      } else if (role === 'instructor') {
-        const b = await getBookings({ ...filters, instructorId: profile.id })
-        setUpcoming(b.data || [])
-      } else {
-        const [b, p] = await Promise.all([
-          getBookings({ ...filters, studentId: profile.id }),
-          getProgressRecords(profile.id)
-        ])
-        setUpcoming(b.data || [])
-        // Count skill levels for chart
-        const counts = { Beginner: 0, Developing: 0, Proficient: 0 }
-        p.data?.forEach(r => { if (counts[r.skill_level] !== undefined) counts[r.skill_level]++ })
-        setProgressData(Object.entries(counts).map(([name, value]) => ({ name, value })))
+    async function load() {
+      try {
+        const now = new Date().toISOString()
+        const weekAhead = new Date(Date.now() + 7 * 86400000).toISOString()
+        const filters = { from: now, to: weekAhead, status: 'confirmed' }
+
+        if (role === 'manager') {
+          const [s, b] = await Promise.all([
+            getDashboardStats(),
+            getBookings(filters)
+          ])
+          setStats(s)
+          setUpcoming(b.data || [])
+        } else if (role === 'instructor') {
+          const b = await getBookings({ ...filters, instructorId: profile.id })
+          setUpcoming(b.data || [])
+        } else {
+          const [b, p] = await Promise.all([
+            getBookings({ ...filters, studentId: profile.id }),
+            getProgressRecords(profile.id)
+          ])
+          setUpcoming(b.data || [])
+          const counts = { Beginner: 0, Developing: 0, Proficient: 0 }
+          p.data?.forEach(r => { if (counts[r.skill_level] !== undefined) counts[r.skill_level]++ })
+          setProgressData(Object.entries(counts).map(([name, value]) => ({ name, value })))
+        }
+      } catch (err) {
+        console.error('Dashboard load error:', err)
+      } finally {
+        clearTimeout(timeout)
+        setLoading(false)
       }
-      setLoading(false)
     }
-    if (profile) load()
+
+    if (profile) {
+      load()
+    } else {
+      // No profile yet — wait a moment then stop loading
+      const fallback = setTimeout(() => setLoading(false), 3000)
+      return () => { clearTimeout(timeout); clearTimeout(fallback) }
+    }
+
+    return () => clearTimeout(timeout)
   }, [profile, role])
 
   if (loading) return <div className="flex justify-center items-center h-64"><Spinner size="lg" /></div>
