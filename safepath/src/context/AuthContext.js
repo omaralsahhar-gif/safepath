@@ -7,67 +7,71 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const loadingTimeout = useRef(null)
+  const timeoutRef = useRef(null)
 
-  const startLoadingTimeout = () => {
-    clearTimeout(loadingTimeout.current)
-    loadingTimeout.current = setTimeout(() => {
-      setLoading(false)
-    }, 5000)
+  const clearTimer = () => clearTimeout(timeoutRef.current)
+
+  const forceSignOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    setLoading(false)
   }
-
-  const stopLoadingTimeout = () => {
-    clearTimeout(loadingTimeout.current)
-  }
-
-  useEffect(() => {
-    startLoadingTimeout()
-
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setLoading(false)
-        stopLoadingTimeout()
-        return
-      }
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        loadProfile(session.user.id)
-      } else {
-        setLoading(false)
-        stopLoadingTimeout()
-      }
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'TOKEN_REFRESHED' && !session) {
-        setUser(null); setProfile(null); setLoading(false); stopLoadingTimeout(); return
-      }
-      if (event === 'SIGNED_OUT') {
-        setUser(null); setProfile(null); setLoading(false); stopLoadingTimeout(); return
-      }
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        await loadProfile(session.user.id)
-      } else {
-        setProfile(null); setLoading(false); stopLoadingTimeout()
-      }
-    })
-
-    return () => { subscription.unsubscribe(); stopLoadingTimeout() }
-  }, [])
 
   const loadProfile = async (userId) => {
     try {
       const { data, error } = await getProfile(userId)
-      if (error) throw error
+      if (error || !data) {
+        // Profile missing — this session is broken, sign out cleanly
+        await forceSignOut()
+        return
+      }
       setProfile(data)
     } catch (err) {
-      setProfile(null)
+      await forceSignOut()
     } finally {
+      clearTimer()
       setLoading(false)
-      stopLoadingTimeout()
     }
   }
+
+  useEffect(() => {
+    // Hard 8 second timeout — if anything gets stuck, force sign out
+    timeoutRef.current = setTimeout(() => {
+      forceSignOut()
+    }, 8000)
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error || !session) {
+        setUser(null)
+        setProfile(null)
+        clearTimer()
+        setLoading(false)
+        return
+      }
+      setUser(session.user)
+      loadProfile(session.user.id)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null)
+        setProfile(null)
+        clearTimer()
+        setLoading(false)
+        return
+      }
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setUser(session.user)
+        await loadProfile(session.user.id)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimer()
+    }
+  }, [])
 
   const refreshProfile = async () => {
     if (user) await loadProfile(user.id)
