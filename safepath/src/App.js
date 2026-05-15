@@ -27,23 +27,25 @@ function Layout({ children }) {
 function PrivateRoute({ children, allowedRoles }) {
   const { user, profile, loading } = useAuth()
   if (loading) return <LoadingPage />
-  if (!user) return <Navigate to="/login" replace />
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+  if (!user || !profile) return <Navigate to="/login" replace />
+  if (allowedRoles && !allowedRoles.includes(profile.role)) {
     return <Navigate to="/dashboard" replace />
   }
   return children
 }
 
 function AppRoutes() {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
 
-  // If stuck loading for any reason, default to login
   if (loading) return <LoadingPage />
+
+  // If user exists but profile is missing, session is broken — go to login
+  if (user && !profile) return <Navigate to="/login" replace />
 
   return (
     <Routes>
       <Route path="/login" element={
-        user ? <Navigate to="/dashboard" replace /> : <Login />
+        user && profile ? <Navigate to="/dashboard" replace /> : <Login />
       } />
       <Route path="/dashboard" element={
         <PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>
@@ -52,7 +54,7 @@ function AppRoutes() {
         <PrivateRoute><Layout><Bookings /></Layout></PrivateRoute>
       } />
       <Route path="/students" element={
-        <PrivateRoute allowedRoles={['manager','instructor']}>
+        <PrivateRoute allowedRoles={['manager', 'instructor']}>
           <Layout><Students /></Layout>
         </PrivateRoute>
       } />
@@ -65,7 +67,7 @@ function AppRoutes() {
         <PrivateRoute><Layout><Progress /></Layout></PrivateRoute>
       } />
       <Route path="/payments" element={
-        <PrivateRoute allowedRoles={['manager','student']}>
+        <PrivateRoute allowedRoles={['manager', 'student']}>
           <Layout><Payments /></Layout>
         </PrivateRoute>
       } />
